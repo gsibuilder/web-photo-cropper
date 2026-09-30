@@ -207,6 +207,7 @@ class InstallWorker(QThread):
                 print(f"Chrome extension auto-configured for: {ch_path}")
 
             # Shortcuts
+            icon_path = os.path.join(self.target_dir, "app_icon.ico")
             self.progress.emit(85, "Creating shortcuts...")
             desktop_dir = os.path.join(os.path.expanduser("~"), "Desktop")
             if sys.platform == "win32":
