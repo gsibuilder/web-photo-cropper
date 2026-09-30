@@ -30,6 +30,66 @@ def open_path(path):
         os.startfile(path)
     else:
         subprocess.run(["xdg-open", path])
+def find_chrome_path():
+    """Locates Chrome executable path on Windows or Linux."""
+    if sys.platform == "win32":
+        paths = [
+            os.path.expandvars(r"%ProgramFiles%\Google\Chrome\Application\chrome.exe"),
+            os.path.expandvars(r"%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"),
+            os.path.expandvars(r"%LocalAppData%\Google\Chrome\Application\chrome.exe")
+        ]
+        for p in paths:
+            if os.path.isfile(p):
+                return p
+    else:
+        for cmd in ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser"]:
+            path = shutil.which(cmd)
+            if path:
+                return path
+    return None
+
+
+def install_chrome_extension(target_dir):
+    """Auto-configures Chrome extension if Chrome is installed on the system."""
+    chrome_bin = find_chrome_path()
+    if not chrome_bin:
+        return False, "Chrome executable not detected"
+
+    ext_source = os.path.join(target_dir, "extension")
+    if not os.path.exists(ext_source):
+        return False, "Extension directory not found"
+
+    # On Linux: Copy extension into Chrome user configuration folders
+    if sys.platform != "win32":
+        user_home = os.path.expanduser("~")
+        chrome_config_dirs = [
+            os.path.join(user_home, ".config", "google-chrome", "External Extensions"),
+            os.path.join(user_home, ".config", "chromium", "External Extensions")
+        ]
+        for cdir in chrome_config_dirs:
+            try:
+                os.makedirs(cdir, exist_ok=True)
+                ext_dest = os.path.join(cdir, "WebPhotoCropperExtension")
+                if os.path.exists(ext_dest):
+                    shutil.rmtree(ext_dest)
+                shutil.copytree(ext_source, ext_dest)
+            except Exception as e:
+                print(f"Linux Chrome extension copy log: {e}")
+
+    # On Windows: Add Registry entry for Chrome External Extension
+    else:
+        try:
+            import winreg
+            key_path = r"Software\Google\Chrome\Extensions\webphotocropper"
+            with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key_path) as key:
+                winreg.SetValueEx(key, "path", 0, winreg.REG_SZ, os.path.abspath(ext_source))
+                winreg.SetValueEx(key, "version", 0, winreg.REG_SZ, "1.0")
+        except Exception as e:
+            print(f"Windows Registry extension log: {e}")
+
+    return True, chrome_bin
+
+
 def create_windows_shortcut(target_path, shortcut_path, icon_path=None, description="", is_chrome=False):
     """Creates a shortcut (.lnk on Windows, .desktop on Linux)."""
     if sys.platform == "win32":
@@ -62,8 +122,12 @@ oLink.Description = "{description}"
             desktop_path = desktop_path[:-4] + '.desktop'
 
         target_dir = os.path.dirname(target_path)
+        ext_dir = os.path.join(target_dir, "extension")
         if is_chrome:
-            exec_cmd = f"google-chrome file://{target_path}"
+            if os.path.exists(ext_dir):
+                exec_cmd = f"google-chrome --load-extension=\"{ext_dir}\" file://{target_path}"
+            else:
+                exec_cmd = f"google-chrome file://{target_path}"
         elif target_path.endswith('.py'):
             exec_cmd = f"python3 \"{target_path}\""
         else:
@@ -136,7 +200,11 @@ class InstallWorker(QThread):
                 # If running from source directory
                 exe_path = os.path.join(self.target_dir, "main.py")
 
-            icon_path = os.path.join(self.target_dir, "app_icon.ico")
+            # Auto-Detect and Install Chrome Extension if Chrome is present on device
+            self.progress.emit(80, "Detecting Chrome and installing extension...")
+            ch_installed, ch_path = install_chrome_extension(self.target_dir)
+            if ch_installed:
+                print(f"Chrome extension auto-configured for: {ch_path}")
 
             # Shortcuts
             self.progress.emit(85, "Creating shortcuts...")
