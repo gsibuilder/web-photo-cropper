@@ -1,0 +1,30 @@
+# Python Cache & Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+
+# PyInstaller & Build output
+build/
+dist/
+*.spec
+*.zip
+github_uploader.py
+push_to_github.py
+
+# Virtual Environments
+venv/
+env/
+.venv/
+ENV/
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary & Log files
+*.log
+scratch/
+test_*.py
