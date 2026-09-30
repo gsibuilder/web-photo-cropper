@@ -1,0 +1,66 @@
+name: Build & Release WebPhotoCropper
+
+on:
+  push:
+    branches: [ "master", "main" ]
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Windows Application & Installer
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller opencv-python pillow-heif qrcode
+
+      - name: Build WebPhotoCropper Executable
+        run: |
+          python build_exe.py
+
+      - name: Build Setup Installer
+        run: |
+          python build_installer.py
+
+      - name: Compress Portable Distributable
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist/WebPhotoCropper -DestinationPath dist/WebPhotoCropper-Portable.zip -Force
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: WebPhotoCropper-Windows
+          path: |
+            dist/Setup_WebPhotoCropper.exe
+            dist/WebPhotoCropper-Portable.zip
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/Setup_WebPhotoCropper.exe
+            dist/WebPhotoCropper-Portable.zip
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
