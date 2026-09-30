@@ -134,7 +134,7 @@ class EdgeServerThread(QThread):
         ports_to_try = [self.port, 59998, 59997, 59996]
         for p in ports_to_try:
             try:
-                self.httpd = ReusableHTTPServer(('127.0.0.1', p), EdgeWebhookHandler)
+                self.httpd = ReusableHTTPServer(('0.0.0.0', p), EdgeWebhookHandler)
                 self.httpd.worker_signal = self.imageReceived
                 self.port = p
                 break

@@ -3,7 +3,22 @@
 **Author & Developer:** Corey Kiesel  
 **Version:** 1.0 (Windows)
 
-A modern, high-performance Qt6 desktop application designed to watch Microsoft Edge, load photos when clicked or copied, and crop, save, or **print** them directly.
+- **Platform Support**: Windows, Linux, macOS, and **Apple iOS Safari**
+
+---
+
+## 📱 Apple iOS & Safari Support
+
+WebPhotoCropper includes full support for Apple iOS (iPhone & iPad) and macOS Safari:
+
+### 1. 🌐 iOS Safari Bookmarklet & Web Helper
+Open `ios_safari_bookmark_helper.html` on your iPhone or iPad:
+- **Bookmarklet**: Save the one-tap iOS Safari Bookmarklet to send images from any webpage directly to WebPhotoCropper over Wi-Fi.
+- **iOS Photos & Camera**: Tap to pick photos directly from your iOS Photo Library or iPhone Camera.
+- **LAN Auto-Discovery**: Automatically connects to your desktop instance over local Wi-Fi (`http://<your-computer-ip>:59999`).
+
+### 2. 🍏 macOS App Build
+macOS builds are automatically compiled and published on every release tag via GitHub Actions (`WebPhotoCropper-macOS-Portable.tar.gz`).
 
 ---
 

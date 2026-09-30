@@ -18,6 +18,7 @@ def build():
         "--icon=app_icon.ico",
         f"--add-data=edge_bookmark_helper.html{sep}.",
         f"--add-data=chrome_bookmark_helper.html{sep}.",
+        f"--add-data=ios_safari_bookmark_helper.html{sep}.",
         f"--add-data=edge_photo_watcher.user.js{sep}.",
         f"--add-data=extension{sep}extension",
         f"--add-data=app_icon.ico{sep}.",

@@ -26,6 +26,10 @@ jobs:
             artifact_name: WebPhotoCropper-Linux
             installer_file: dist/Setup_WebPhotoCropper-Linux
             portable_file: dist/WebPhotoCropper-Linux-Portable.tar.gz
+          - os: macos-latest
+            artifact_name: WebPhotoCropper-macOS
+            installer_file: dist/Setup_WebPhotoCropper-macOS
+            portable_file: dist/WebPhotoCropper-macOS-Portable.tar.gz
 
     steps:
       - name: Check out repository
@@ -64,6 +68,12 @@ jobs:
         run: |
           cp dist/Setup_WebPhotoCropper dist/Setup_WebPhotoCropper-Linux
           tar -czvf dist/WebPhotoCropper-Linux-Portable.tar.gz -C dist WebPhotoCropper
+
+      - name: Package macOS Artifacts
+        if: runner.os == 'macOS'
+        run: |
+          cp dist/Setup_WebPhotoCropper dist/Setup_WebPhotoCropper-macOS
+          tar -czvf dist/WebPhotoCropper-macOS-Portable.tar.gz -C dist WebPhotoCropper
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4

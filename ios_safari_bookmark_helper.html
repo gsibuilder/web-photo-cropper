@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Web Photo Cropper - Apple iOS & Safari Helper</title>
+    <style>
+        :root {
+            --ios-bg: #f2f2f7;
+            --ios-card: rgba(255, 255, 255, 0.85);
+            --ios-blue: #007aff;
+            --ios-green: #34c759;
+            --ios-text: #1c1c1e;
+            --ios-subtext: #8e8e93;
+            --ios-border: rgba(60, 60, 67, 0.12);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --ios-bg: #000000;
+                --ios-card: rgba(28, 28, 30, 0.85);
+                --ios-text: #ffffff;
+                --ios-subtext: #98989d;
+                --ios-border: rgba(84, 84, 88, 0.36);
+            }
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+            background-color: var(--ios-bg);
+            color: var(--ios-text);
+            margin: 0;
+            padding: 20px 16px 40px 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 520px;
+            width: 100%;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .app-icon {
+            width: 76px;
+            height: 76px;
+            border-radius: 18px;
+            box-shadow: 0 8px 24px rgba(0, 122, 255, 0.25);
+            margin-bottom: 12px;
+        }
+
+        h1 {
+            font-size: 24px;
+            font-weight: 700;
+            margin: 0 0 6px 0;
+            letter-spacing: -0.5px;
+        }
+
+        .subtitle {
+            font-size: 14px;
+            color: var(--ios-subtext);
+            margin: 0;
+        }
+
+        .card {
+            background: var(--ios-card);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 16px;
+            border: 1px solid var(--ios-border);
+            padding: 20px;
+            margin-bottom: 18px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+        }
+
+        .card-title {
+            font-size: 17px;
+            font-weight: 600;
+            margin: 0 0 12px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            background: rgba(0, 122, 255, 0.1);
+            color: var(--ios-blue);
+        }
+
+        .status-badge.connected {
+            background: rgba(52, 199, 89, 0.15);
+            color: var(--ios-green);
+        }
+
+        .input-group {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 12px 14px;
+            border-radius: 10px;
+            border: 1px solid var(--ios-border);
+            background: var(--ios-bg);
+            color: var(--ios-text);
+            font-size: 15px;
+            outline: none;
+        }
+
+        .btn {
+            background: var(--ios-blue);
+            color: #ffffff;
+            border: none;
+            border-radius: 10px;
+            padding: 12px 18px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s ease, transform 0.1s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .btn:active {
+            opacity: 0.75;
+            transform: scale(0.98);
+        }
+
+        .btn-secondary {
+            background: var(--ios-border);
+            color: var(--ios-text);
+        }
+
+        .bookmarklet-box {
+            background: rgba(0, 122, 255, 0.08);
+            border: 1.5.px dashed var(--ios-blue);
+            border-radius: 12px;
+            padding: 14px;
+            text-align: center;
+            margin-top: 12px;
+        }
+
+        .bookmarklet-link {
+            display: inline-block;
+            background: var(--ios-blue);
+            color: #ffffff;
+            text-decoration: none;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            margin: 6px 0;
+        }
+
+        ol {
+            margin: 8px 0 0 0;
+            padding-left: 20px;
+            font-size: 14px;
+            color: var(--ios-subtext);
+            line-height: 1.6;
+        }
+
+        ol li {
+            margin-bottom: 6px;
+        }
+
+        .drop-zone {
+            border: 2px dashed var(--ios-blue);
+            border-radius: 14px;
+            padding: 24px;
+            text-align: center;
+            cursor: pointer;
+            background: rgba(0, 122, 255, 0.04);
+            transition: background 0.2s;
+        }
+
+        .drop-zone:hover {
+            background: rgba(0, 122, 255, 0.08);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="app_icon.ico" alt="App Icon" class="app-icon" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✂️</text></svg>'">
+            <h1>Web Photo Cropper</h1>
+            <p class="subtitle">Apple iOS & Safari Integration Helper</p>
+        </div>
+
+        <!-- Server Connection Status -->
+        <div class="card">
+            <div class="card-title">
+                <span>📱 Desktop App Server</span>
+                <span id="server-status" class="status-badge">Checking...</span>
+            </div>
+            <p style="font-size: 13px; color: var(--ios-subtext); margin: 0 0 8px 0;">
+                Connect to your WebPhotoCropper desktop instance on local Wi-Fi:
+            </p>
+            <div class="input-group">
+                <input type="text" id="server-url" value="http://localhost:59999" placeholder="http://192.168.1.X:59999">
+                <button class="btn" onclick="testConnection()">Connect</button>
+            </div>
+        </div>
+
+        <!-- iOS Safari Bookmarklet -->
+        <div class="card">
+            <div class="card-title">🌐 iOS Safari Bookmarklet</div>
+            <p style="font-size: 14px; color: var(--ios-subtext); margin: 0 0 10px 0;">
+                Send any image from Safari on iPhone or iPad straight to your cropper:
+            </p>
+            <div class="bookmarklet-box">
+                <a id="bookmarklet-link" class="bookmarklet-link" href="#">✂️ Send to Photo Cropper</a>
+                <br>
+                <button class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px; margin-top: 6px;" onclick="copyBookmarklet()">📋 Copy Bookmarklet Code</button>
+            </div>
+            <ol>
+                <li>Bookmark this page in iOS Safari.</li>
+                <li>Edit the bookmark and replace the URL with the code above.</li>
+                <li>Tap the bookmark on any website to crop photos instantly!</li>
+            </ol>
+        </div>
+
+        <!-- Direct Photo Upload from iOS Photos / Camera -->
+        <div class="card">
+            <div class="card-title">📷 Send Photo from iOS Device</div>
+            <div class="drop-zone" onclick="document.getElementById('file-input').click()">
+                <span style="font-size: 32px; display: block; margin-bottom: 8px;">📸</span>
+                <span style="font-size: 15px; font-weight: 600; color: var(--ios-blue);">Tap to Choose from Photos or Camera</span>
+                <input type="file" id="file-input" accept="image/*" style="display: none;" onchange="handleFileSelect(event)">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function getServerUrl() {
+            return document.getElementById('server-url').value.replace(/\/$/, '');
+        }
+
+        function updateBookmarkletHref() {
+            const server = getServerUrl();
+            const jsCode = `javascript:(function(){var img=document.querySelector('img:hover')||document.querySelector('img');if(img){fetch('${server}/load?url='+encodeURIComponent(img.src)).then(()=>alert('Photo sent to WebPhotoCropper!')).catch(e=>alert('Error connecting to Photo Cropper server: '+e));}else{alert('No image found on page');}})();`;
+            document.getElementById('bookmarklet-link').href = jsCode;
+        }
+
+        async function testConnection() {
+            const statusBadge = document.getElementById('server-status');
+            statusBadge.className = 'status-badge';
+            statusBadge.innerText = 'Checking...';
+            updateBookmarkletHref();
+
+            try {
+                const response = await fetch(getServerUrl() + '/load?url=test', { mode: 'cors' });
+                if (response.ok) {
+                    statusBadge.className = 'status-badge connected';
+                    statusBadge.innerText = '🟢 Connected';
+                } else {
+                    throw new Error('Server returned ' + response.status);
+                }
+            } catch (err) {
+                statusBadge.className = 'status-badge';
+                statusBadge.innerText = '🔴 Offline / Check IP';
+            }
+        }
+
+        function copyBookmarklet() {
+            updateBookmarkletHref();
+            const code = document.getElementById('bookmarklet-link').href;
+            navigator.clipboard.writeText(code).then(() => {
+                alert('Bookmarklet code copied! Edit your Safari bookmark and paste this as the URL.');
+            });
+        }
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const dataUrl = e.target.result;
+                fetch(getServerUrl() + '/load', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: dataUrl })
+                }).then(() => alert('Image sent to WebPhotoCropper!'))
+                  .catch(err => alert('Failed to send image: ' + err));
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // Test connection on load
+        window.onload = testConnection;
+    </script>
+</body>
+</html>
