@@ -12,8 +12,16 @@ permissions:
 
 jobs:
   build:
-    name: Build Windows Application & Installer
-    runs-on: windows-latest
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact_name: WebPhotoCropper-Windows
+          - os: ubuntu-latest
+            artifact_name: WebPhotoCropper-Linux
 
     steps:
       - name: Check out repository
@@ -25,40 +33,53 @@ jobs:
           python-version: '3.11'
           cache: 'pip'
 
-      - name: Install dependencies
+      - name: Install Linux System Dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxcb1 libxcb-xinerama0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-shape0 libxcb-xfixes0 libxkbcommon-x11-0 libsm6 libice6 libglib2.0-0t64 libfontconfig1 || true
+
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pyinstaller opencv-python pillow-heif qrcode
+          pip install pyinstaller opencv-python pillow-heif qrcode PyQt6
 
-      - name: Build WebPhotoCropper Executable
+      - name: Build Standalone Executable & Setup Installer
         run: |
-          python build_exe.py
+          python build_all.py
 
-      - name: Build Setup Installer
-        run: |
-          python build_installer.py
-
-      - name: Compress Portable Distributable
+      - name: Package Windows Artifacts
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          Compress-Archive -Path dist/WebPhotoCropper -DestinationPath dist/WebPhotoCropper-Portable.zip -Force
+          Compress-Archive -Path dist/WebPhotoCropper -DestinationPath dist/WebPhotoCropper-Windows-Portable.zip -Force
+
+      - name: Package Linux Artifacts
+        if: runner.os == 'Linux'
+        run: |
+          cp dist/Setup_WebPhotoCropper dist/Setup_WebPhotoCropper-Linux
+          tar -czvf dist/WebPhotoCropper-Linux-Portable.tar.gz -C dist WebPhotoCropper
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: WebPhotoCropper-Windows
+          name: ${{ matrix.artifact_name }}
           path: |
             dist/Setup_WebPhotoCropper.exe
-            dist/WebPhotoCropper-Portable.zip
+            dist/Setup_WebPhotoCropper-Linux
+            dist/WebPhotoCropper-Windows-Portable.zip
+            dist/WebPhotoCropper-Linux-Portable.tar.gz
 
-      - name: Create Release
+      - name: Create / Update GitHub Release
         if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/Setup_WebPhotoCropper.exe
-            dist/WebPhotoCropper-Portable.zip
+            dist/Setup_WebPhotoCropper-Linux
+            dist/WebPhotoCropper-Windows-Portable.zip
+            dist/WebPhotoCropper-Linux-Portable.tar.gz
           draft: false
           prerelease: false
           generate_release_notes: true
