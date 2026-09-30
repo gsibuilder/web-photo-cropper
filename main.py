@@ -11,6 +11,21 @@ import urllib.parse
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import socket
 from datetime import datetime
+if sys.platform != "win32":
+    os.environ["QT_QPA_PLATFORM"] = "xcb"
+
+def open_in_browser(path):
+    # Open a file or URL in the system's default web browser (Chrome on Linux if set as default)
+    if os.path.isfile(path):
+        webbrowser.open_new_tab(f"file://{os.path.abspath(path)}")
+    else:
+        webbrowser.open_new_tab(path)
+
+def open_path(path):
+    if sys.platform == "win32":
+        os.startfile(path)
+    else:
+        subprocess.run(["xdg-open", path])
 
 from PyQt6.QtCore import (
     Qt, QSize, QPoint, QRect, QRectF, pyqtSignal, QThread, QObject, 
@@ -813,7 +828,7 @@ class EdgeSetupDialog(QDialog):
         try:
             ext_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "extension")
             if os.path.exists(ext_folder):
-                os.startfile(ext_folder)
+                open_path(ext_folder)
             else:
                 QMessageBox.warning(self, "Folder Not Found", f"Extension folder not found at: {ext_folder}")
         except Exception as e:
@@ -823,7 +838,7 @@ class EdgeSetupDialog(QDialog):
         try:
             helper_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "edge_bookmark_helper.html")
             if os.path.exists(helper_path):
-                os.startfile(helper_path)
+                open_path(helper_path)
             else:
                 QMessageBox.warning(self, "File Not Found", f"Helper HTML not found at: {helper_path}")
         except Exception as e:
@@ -2395,7 +2410,7 @@ class ModernMainWindow(QMainWindow):
             action = menu.exec(self.history_list.mapToGlobal(point))
             if action == open_action:
                 if filepath and os.path.exists(filepath):
-                    os.startfile(filepath)
+                    open_path(filepath)
             elif action == print_action:
                 if filepath and os.path.exists(filepath):
                     pix = QPixmap(filepath)
@@ -2575,7 +2590,7 @@ class ModernMainWindow(QMainWindow):
     def openSavedFolder(self):
         try:
             if os.path.exists(self.save_directory):
-                os.startfile(self.save_directory)
+                open_path(self.save_directory)
             else:
                 QMessageBox.information(self, "Folder", f"Directory does not exist yet: {self.save_directory}")
         except Exception as e:
@@ -2640,7 +2655,7 @@ class ModernMainWindow(QMainWindow):
         try:
             filepath = item.data(Qt.ItemDataRole.UserRole)
             if filepath and os.path.exists(filepath):
-                os.startfile(filepath)
+                open_path(filepath)
         except Exception:
             pass
 

@@ -13,11 +13,28 @@ from PyQt6.QtWidgets import (
     QMessageBox
 )
 
+# Ensure script runs with root privileges on Linux
 
-def create_windows_shortcut(target_path, shortcut_path, icon_path=None, description=""):
-    """Creates a Windows .lnk shortcut using VBScript / PowerShell."""
-    try:
-        vbs_script = f"""
+def ensure_root():
+    """Relaunch script with sudo if not already root (Linux)."""
+    if os.name != "nt" and os.geteuid() != 0:
+        print("Elevating privileges with sudo...")
+        subprocess.run(["sudo", sys.executable] + sys.argv)
+        sys.exit(0)
+
+# ensure_root()  # Disabled to avoid sudo prompt
+
+
+def open_path(path):
+    if sys.platform == "win32":
+        os.startfile(path)
+    else:
+        subprocess.run(["xdg-open", path])
+def create_windows_shortcut(target_path, shortcut_path, icon_path=None, description="", is_chrome=False):
+    """Creates a shortcut (.lnk on Windows, .desktop on Linux)."""
+    if sys.platform == "win32":
+        try:
+            vbs_script = f"""
 Set oWS = WScript.CreateObject("WScript.Shell")
 sLinkFile = "{shortcut_path}"
 Set oLink = oWS.CreateShortcut(sLinkFile)
@@ -25,44 +42,83 @@ oLink.TargetPath = "{target_path}"
 oLink.WorkingDirectory = "{os.path.dirname(target_path)}"
 oLink.Description = "{description}"
 """
-        if icon_path and os.path.exists(icon_path):
-            vbs_script += f'oLink.IconLocation = "{icon_path}, 0"\n'
-        vbs_script += "oLink.Save\n"
+            if icon_path and os.path.exists(icon_path):
+                vbs_script += f'oLink.IconLocation = "{icon_path}, 0"\n'
+            vbs_script += "oLink.Save\n"
 
-        temp_vbs = os.path.join(os.environ.get("TEMP", "."), "make_shortcut.vbs")
-        with open(temp_vbs, "w", encoding="utf-8") as f:
-            f.write(vbs_script)
-        
-        subprocess.run(["cscript", "//nologo", temp_vbs], check=True)
-        if os.path.exists(temp_vbs):
-            os.remove(temp_vbs)
-    except Exception as e:
-        print(f"Shortcut creation error: {e}")
+            temp_vbs = os.path.join(os.environ.get("TEMP", "/tmp"), "make_shortcut.vbs")
+            with open(temp_vbs, "w", encoding="utf-8") as f:
+                f.write(vbs_script)
+
+            subprocess.run(["cscript", "//nologo", temp_vbs], check=True)
+            if os.path.exists(temp_vbs):
+                os.remove(temp_vbs)
+        except Exception as e:
+            print(f"Shortcut creation error: {e}")
+    else:
+        # Linux fallback: create .desktop shortcut
+        desktop_path = shortcut_path
+        if desktop_path.lower().endswith('.lnk'):
+            desktop_path = desktop_path[:-4] + '.desktop'
+
+        target_dir = os.path.dirname(target_path)
+        if is_chrome:
+            exec_cmd = f"google-chrome file://{target_path}"
+        elif target_path.endswith('.py'):
+            exec_cmd = f"python3 \"{target_path}\""
+        else:
+            exec_cmd = f"\"{target_path}\""
+
+        desktop_content = f"[Desktop Entry]\nName={description}\nExec={exec_cmd}\nPath={target_dir}\nType=Application\nTerminal=false\n"
+        if icon_path and os.path.exists(icon_path):
+            desktop_content += f"Icon={icon_path}\n"
+
+        os.makedirs(os.path.dirname(desktop_path), exist_ok=True)
+        with open(desktop_path, "w", encoding="utf-8") as f:
+            f.write(desktop_content)
+        os.chmod(desktop_path, 0o755)
 
 
 class InstallWorker(QThread):
     progress = pyqtSignal(int, str)
     finished = pyqtSignal(bool, str)
 
-    def __init__(self, source_dir, target_dir, create_desktop, create_startmenu):
+    def __init__(self, source_dir, target_dir, create_desktop, create_startmenu, create_chrome):
         super().__init__()
         self.source_dir = source_dir
         self.target_dir = target_dir
         self.create_desktop = create_desktop
         self.create_startmenu = create_startmenu
+        self.create_chrome = create_chrome
 
     def run(self):
         try:
             self.progress.emit(10, "Preparing installation directory...")
             os.makedirs(self.target_dir, exist_ok=True)
 
+            # Linux-specific: install required system packages
+            if sys.platform != "win32":
+                self.progress.emit(12, "Installing Linux system dependencies...")
+                req_path = os.path.join(os.path.dirname(__file__), "linux_requirements.txt")
+                if os.path.isfile(req_path):
+                    import subprocess
+                    subprocess.run(["sudo", "apt-get", "update"], check=True)
+                    with open(req_path, "r") as f:
+                        packages = [line.strip() for line in f if line.strip() and not line.startswith("#")]
+                    if packages:
+                        subprocess.run(["sudo", "apt-get", "install", "-y"] + packages, check=True)
+                else:
+                    print("Linux requirements file not found:", req_path)
+
             self.progress.emit(25, "Copying application files...")
             total_files = 0
             for root, dirs, files in os.walk(self.source_dir):
+                dirs[:] = [d for d in dirs if d not in ['.git', '__pycache__', '.venv', '.idea', '.vs']]
                 total_files += len(files)
 
             copied = 0
             for root, dirs, files in os.walk(self.source_dir):
+                dirs[:] = [d for d in dirs if d not in ['.git', '__pycache__', '.venv', '.idea', '.vs']]
                 rel_path = os.path.relpath(root, self.source_dir)
                 dest_root = os.path.join(self.target_dir, rel_path) if rel_path != "." else self.target_dir
                 os.makedirs(dest_root, exist_ok=True)
@@ -84,15 +140,24 @@ class InstallWorker(QThread):
 
             # Shortcuts
             self.progress.emit(85, "Creating shortcuts...")
+            desktop_dir = os.path.join(os.path.expanduser("~"), "Desktop")
+            if sys.platform == "win32":
+                startmenu_dir = os.path.join(os.environ.get("APPDATA", ""), r"Microsoft\Windows\Start Menu\Programs")
+            else:
+                startmenu_dir = os.path.join(os.path.expanduser("~"), ".local", "share", "applications")
+
             if self.create_desktop:
-                desktop = os.path.join(os.path.expanduser("~"), "Desktop")
-                shortcut_file = os.path.join(desktop, "Web Photo Cropper.lnk")
+                shortcut_file = os.path.join(desktop_dir, "Web Photo Cropper.lnk")
                 create_windows_shortcut(exe_path, shortcut_file, icon_path, "Web Photo Quick Cropper & Saver")
 
             if self.create_startmenu:
-                programs = os.path.join(os.environ.get("APPDATA", ""), r"Microsoft\Windows\Start Menu\Programs")
-                shortcut_file = os.path.join(programs, "Web Photo Cropper.lnk")
+                shortcut_file = os.path.join(startmenu_dir, "Web Photo Cropper.lnk")
                 create_windows_shortcut(exe_path, shortcut_file, icon_path, "Web Photo Quick Cropper & Saver")
+
+            if self.create_chrome:
+                chrome_helper_path = os.path.join(self.target_dir, "chrome_bookmark_helper.html")
+                chrome_shortcut_file = os.path.join(desktop_dir, "Web Photo Cropper Chrome Helper.lnk")
+                create_windows_shortcut(chrome_helper_path, chrome_shortcut_file, icon_path, "Web Photo Cropper - Chrome Helper", is_chrome=True)
 
             # Create Uninstaller Script
             self.progress.emit(95, "Generating uninstaller...")
@@ -233,7 +298,7 @@ class InstallerWizard(QWizard):
         layout.addWidget(desc)
 
         dir_row = QHBoxLayout()
-        default_dir = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "Programs", "WebPhotoCropper")
+        default_dir = os.path.join(os.path.expanduser("~"), "Programs", "WebPhotoCropper")
         self.txt_dir = QLineEdit(default_dir)
         dir_row.addWidget(self.txt_dir, stretch=1)
 
@@ -254,6 +319,11 @@ class InstallerWizard(QWizard):
         self.chk_startmenu = QCheckBox("Create a Start Menu Shortcut")
         self.chk_startmenu.setChecked(True)
         options_layout.addWidget(self.chk_startmenu)
+
+        # Chrome shortcut option (desktop)
+        self.chk_chrome = QCheckBox("Create a Chrome Desktop Shortcut")
+        self.chk_chrome.setChecked(True)
+        options_layout.addWidget(self.chk_chrome)
 
         layout.addWidget(options_group)
         layout.addStretch()
@@ -294,7 +364,8 @@ class InstallerWizard(QWizard):
             self.source_dir,
             target_dir,
             self.chk_desktop.isChecked(),
-            self.chk_startmenu.isChecked()
+            self.chk_startmenu.isChecked(),
+            self.chk_chrome.isChecked()
         )
         self.worker.progress.connect(self.onInstallProgress)
         self.worker.finished.connect(self.onInstallFinished)
@@ -340,7 +411,7 @@ class InstallerWizard(QWizard):
     def accept(self):
         if hasattr(self, 'chk_launch') and self.chk_launch.isChecked() and self.installed_exe:
             if os.path.exists(self.installed_exe):
-                os.startfile(self.installed_exe)
+                open_path(self.installed_exe)
         super().accept()
 
 
