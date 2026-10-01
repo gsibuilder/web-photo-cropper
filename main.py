@@ -181,11 +181,57 @@ class ImageDownloadTask(QRunnable):
                 image_data = base64.b64decode(encoded)
             elif self.url.startswith("http://") or self.url.startswith("https://"):
                 headers = {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8'
                 }
-                response = requests.get(self.url, headers=headers, timeout=12)
+                response = requests.get(self.url, headers=headers, timeout=15)
                 response.raise_for_status()
                 image_data = response.content
+                content_type = response.headers.get('Content-Type', '').lower()
+
+                # If the URL pointed to a webpage (e.g. Ancestry imageviewer, Flickr, or HTML page), extract image URL
+                if 'text/html' in content_type or image_data.lstrip().startswith(b'<!DOCTYPE') or image_data.lstrip().startswith(b'<html'):
+                    html_text = response.text
+                    extracted_img_url = None
+                    import re
+
+                    # 1. Look for Ancestry-specific high-res image service endpoints
+                    ancestry_patterns = [
+                        r'https?://[a-zA-Z0-9.-]*ancestry[a-zA-Z0-9.-]*/mediaui-image-service/images/[^\s"\'<>]+',
+                        r'https?://[a-zA-Z0-9.-]*ancestrycdn[a-zA-Z0-9.-]*/[^\s"\'<>]+\.(?:jpg|jpeg|png|webp)',
+                        r'https?://mediasvc\.ancestry\.com/[^\s"\'<>]+',
+                    ]
+                    for pat in ancestry_patterns:
+                        m = re.search(pat, html_text)
+                        if m:
+                            extracted_img_url = m.group(0)
+                            break
+
+                    # 2. Look for OpenGraph / Twitter metadata tags
+                    if not extracted_img_url:
+                        og_m = re.search(r'<meta[^>]+property=[\'"]og:image[\'"][^>]+content=[\'"]([^\'"]+)[\'"]', html_text, re.IGNORECASE)
+                        if not og_m:
+                            og_m = re.search(r'<meta[^>]+content=[\'"]([^\'"]+)[\'"][^>]+property=[\'"]og:image[\'"]', html_text, re.IGNORECASE)
+                        if og_m:
+                            extracted_img_url = og_m.group(1)
+
+                    if not extracted_img_url:
+                        tw_m = re.search(r'<meta[^>]+name=[\'"]twitter:image[\'"][^>]+content=[\'"]([^\'"]+)[\'"]', html_text, re.IGNORECASE)
+                        if not tw_m:
+                            tw_m = re.search(r'<meta[^>]+content=[\'"]([^\'"]+)[\'"][^>]+name=[\'"]twitter:image[\'"]', html_text, re.IGNORECASE)
+                        if tw_m:
+                            extracted_img_url = tw_m.group(1)
+
+                    if not extracted_img_url:
+                        link_m = re.search(r'<link[^>]+rel=[\'"]image_src[\'"][^>]+href=[\'"]([^\'"]+)[\'"]', html_text, re.IGNORECASE)
+                        if link_m:
+                            extracted_img_url = link_m.group(1)
+
+                    if extracted_img_url:
+                        extracted_img_url = urllib.parse.urljoin(self.url, extracted_img_url)
+                        img_resp = requests.get(extracted_img_url, headers=headers, timeout=15)
+                        img_resp.raise_for_status()
+                        image_data = img_resp.content
             elif os.path.exists(self.url):
                 with open(self.url, 'rb') as f:
                     image_data = f.read()
