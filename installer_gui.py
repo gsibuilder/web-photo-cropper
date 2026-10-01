@@ -14,6 +14,94 @@ from PyQt6.QtWidgets import (
 )
 
 
+def open_path(path):
+    """Opens a file or program appropriately across platforms."""
+    try:
+        if sys.platform == "win32":
+            if path.endswith(".py"):
+                subprocess.Popen([sys.executable, path], cwd=os.path.dirname(path))
+            else:
+                os.startfile(path)
+        else:
+            if path.endswith(".py"):
+                subprocess.Popen(["python3", path], cwd=os.path.dirname(path))
+            else:
+                subprocess.run(["xdg-open", path])
+    except Exception as e:
+        print(f"Error opening {path}: {e}")
+
+
+def find_chrome_path():
+    """Locates Chrome executable path on Windows or Linux."""
+    if sys.platform == "win32":
+        paths = [
+            os.path.expandvars(r"%ProgramFiles%\Google\Chrome\Application\chrome.exe"),
+            os.path.expandvars(r"%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"),
+            os.path.expandvars(r"%LocalAppData%\Google\Chrome\Application\chrome.exe")
+        ]
+        for p in paths:
+            if os.path.isfile(p):
+                return p
+    else:
+        for cmd in ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser"]:
+            path = shutil.which(cmd)
+            if path:
+                return path
+    return None
+
+
+def install_chrome_extension(target_dir):
+    """Auto-configures Chrome extension if Chrome is installed on the system."""
+    try:
+        chrome_bin = find_chrome_path()
+        if not chrome_bin:
+            return False, "Chrome executable not detected"
+
+        ext_source = os.path.join(target_dir, "extension")
+        if not os.path.exists(ext_source):
+            repo_ext = os.path.join(os.path.dirname(os.path.abspath(__file__)), "extension")
+            if os.path.exists(repo_ext):
+                try:
+                    shutil.copytree(repo_ext, ext_source, dirs_exist_ok=True)
+                except Exception as ce:
+                    print(f"Extension copy fallback notice: {ce}")
+            if not os.path.exists(ext_source):
+                return False, "Extension directory not found"
+
+
+        # On Linux: Copy extension into Chrome user configuration folders
+        if sys.platform != "win32":
+            user_home = os.path.expanduser("~")
+            chrome_config_dirs = [
+                os.path.join(user_home, ".config", "google-chrome", "External Extensions"),
+                os.path.join(user_home, ".config", "chromium", "External Extensions")
+            ]
+            for cdir in chrome_config_dirs:
+                try:
+                    os.makedirs(cdir, exist_ok=True)
+                    ext_dest = os.path.join(cdir, "WebPhotoCropperExtension")
+                    if os.path.exists(ext_dest):
+                        shutil.rmtree(ext_dest)
+                    shutil.copytree(ext_source, ext_dest)
+                except Exception as e:
+                    print(f"Linux Chrome extension copy log: {e}")
+
+        # On Windows: Add Registry entry for Chrome External Extension
+        else:
+            try:
+                import winreg
+                key_path = r"Software\Google\Chrome\Extensions\webphotocropper"
+                with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key_path) as key:
+                    winreg.SetValueEx(key, "path", 0, winreg.REG_SZ, os.path.abspath(ext_source))
+                    winreg.SetValueEx(key, "version", 0, winreg.REG_SZ, "1.0")
+            except Exception as e:
+                print(f"Windows Registry extension log: {e}")
+
+        return True, chrome_bin
+    except Exception as e:
+        return False, str(e)
+
+
 def create_windows_shortcut(target_path, shortcut_path, icon_path=None, description="", is_chrome=False):
     """Creates a Windows .lnk shortcut using PowerShell."""
     try:
@@ -32,6 +120,7 @@ $Shortcut.Description = '{description}'
         subprocess.run(["powershell", "-NoProfile", "-Command", ps_script], check=True)
     except Exception as e:
         print(f"Shortcut creation error: {e}")
+
 
 
 
