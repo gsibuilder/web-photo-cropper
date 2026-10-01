@@ -14,30 +14,25 @@ from PyQt6.QtWidgets import (
 )
 
 
-def create_windows_shortcut(target_path, shortcut_path, icon_path=None, description=""):
-    """Creates a Windows .lnk shortcut using VBScript / PowerShell."""
+def create_windows_shortcut(target_path, shortcut_path, icon_path=None, description="", is_chrome=False):
+    """Creates a Windows .lnk shortcut using PowerShell."""
     try:
-        vbs_script = f"""
-Set oWS = WScript.CreateObject("WScript.Shell")
-sLinkFile = "{shortcut_path}"
-Set oLink = oWS.CreateShortcut(sLinkFile)
-oLink.TargetPath = "{target_path}"
-oLink.WorkingDirectory = "{os.path.dirname(target_path)}"
-oLink.Description = "{description}"
+        work_dir = os.path.dirname(target_path) if os.path.isfile(target_path) else target_path
+        ps_script = f"""
+$WshShell = New-Object -ComObject WScript.Shell
+$Shortcut = $WshShell.CreateShortcut('{shortcut_path}')
+$Shortcut.TargetPath = '{target_path}'
+$Shortcut.WorkingDirectory = '{work_dir}'
+$Shortcut.Description = '{description}'
 """
         if icon_path and os.path.exists(icon_path):
-            vbs_script += f'oLink.IconLocation = "{icon_path}, 0"\n'
-        vbs_script += "oLink.Save\n"
+            ps_script += f"$Shortcut.IconLocation = '{icon_path}, 0'\n"
+        ps_script += "$Shortcut.Save()\n"
 
-        temp_vbs = os.path.join(os.environ.get("TEMP", "."), "make_shortcut.vbs")
-        with open(temp_vbs, "w", encoding="utf-8") as f:
-            f.write(vbs_script)
-        
-        subprocess.run(["cscript", "//nologo", temp_vbs], check=True)
-        if os.path.exists(temp_vbs):
-            os.remove(temp_vbs)
+        subprocess.run(["powershell", "-NoProfile", "-Command", ps_script], check=True)
     except Exception as e:
         print(f"Shortcut creation error: {e}")
+
 
 
 
